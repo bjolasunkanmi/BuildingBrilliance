@@ -1,0 +1,421 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id                String      @id @default(cuid())
+  email             String      @unique
+  username          String      @unique
+  firstName         String?
+  lastName          String?
+  avatar            String?
+  bio               String?
+  walletAddress     String?     @unique
+  isVerified        Boolean     @default(false)
+  kycStatus         KYCStatus   @default(PENDING)
+  tier              UserTier    @default(ROOKIE)
+  
+  // Authentication
+  password          String?
+  emailVerifiedAt   DateTime?
+  twoFactorSecret   String?
+  twoFactorEnabled  Boolean     @default(false)
+  
+  // Profile
+  website           String?
+  twitter           String?
+  linkedin          String?
+  youtube           String?
+  location          String?
+  timezone          String?
+  language          String      @default("en")
+  
+  // Platform Stats
+  totalEarnings     Float       @default(0)
+  impactScore       Float       @default(0)
+  followerCount     Int         @default(0)
+  followingCount    Int         @default(0)
+  contentCount      Int         @default(0)
+  
+  // Relationships
+  content           Content[]
+  valueNFTs         ValueNFT[]
+  transactions      Transaction[]
+  subscriptions     Subscription[]
+  reviews           Review[]
+  notifications     Notification[]
+  achievements      Achievement[]
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("users")
+}
+
+// Content Management
+model Content {
+  id                String        @id @default(cuid())
+  title             String
+  description       String?
+  slug              String        @unique
+  content           String        // Rich text content
+  contentType       ContentType
+  category          ContentCategory
+  tags              String[]
+  
+  // Media
+  thumbnailUrl      String?
+  videoUrl          String?
+  audioUrl          String?
+  attachments       String[]
+  
+  // Publishing
+  status            ContentStatus @default(DRAFT)
+  publishedAt       DateTime?
+  scheduledAt       DateTime?
+  
+  // Monetization
+  isPremium         Boolean       @default(false)
+  price             Float?
+  currency          String        @default("USD")
+  
+  // Analytics
+  viewCount         Int           @default(0)
+  likeCount         Int           @default(0)
+  shareCount        Int           @default(0)
+  saveCount         Int           @default(0)
+  engagementScore   Float         @default(0)
+  
+  // AI Analysis
+  readingTime       Int?          // minutes
+  difficultyLevel   Int?          // 1-5
+  qualityScore      Float?        // 0-100
+  complianceScore   Float?        // 0-100
+  
+  // Relationships
+  authorId          String
+  author            User          @relation(fields: [authorId], references: [id])
+  valueNFT          ValueNFT?
+  reviews           Review[]
+  analytics         ContentAnalytics[]
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@map("content")
+}
+
+// ValueNFT System
+model ValueNFT {
+  id                String        @id @default(cuid())
+  tokenId           String        @unique
+  contractAddress   String
+  metadataUri       String
+  
+  // Content Reference
+  contentId         String        @unique
+  content           Content       @relation(fields: [contentId], references: [id])
+  
+  // NFT Details
+  name              String
+  description       String
+  image             String
+  attributes        Json          // NFT attributes
+  
+  // Value Metrics
+  initialValue      Float
+  currentValue      Float
+  impactScore       Float         @default(0)
+  engagementScore   Float         @default(0)
+  
+  // Ownership
+  ownerId           String
+  owner             User          @relation(fields: [ownerId], references: [id])
+  
+  // Trading
+  isListed          Boolean       @default(false)
+  listPrice         Float?
+  lastSalePrice     Float?
+  
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  
+  @@map("value_nfts")
+}
+
+// Transaction Management
+model Transaction {
+  id                String          @id @default(cuid())
+  type              TransactionType
+  status            TransactionStatus @default(PENDING)
+  
+  // Amounts
+  amount            Float
+  fee               Float           @default(0)
+  netAmount         Float
+  currency          String
+  
+  // Blockchain
+  txHash            String?
+  blockNumber       Int?
+  gasUsed           String?
+  
+  // References
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  contentId         String?
+  
+  // Payment Details
+  paymentMethod     PaymentMethod?
+  stripePaymentId   String?
+  
+  // Metadata
+  description       String?
+  metadata          Json?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@map("transactions")
+}
+
+// Analytics System
+model ContentAnalytics {
+  id                String      @id @default(cuid())
+  contentId         String
+  content           Content     @relation(fields: [contentId], references: [id])
+  
+  // Time-based metrics
+  date              DateTime
+  views             Int         @default(0)
+  uniqueViews       Int         @default(0)
+  watchTime         Int         @default(0) // seconds
+  bounceRate        Float       @default(0)
+  
+  // Engagement metrics
+  likes             Int         @default(0)
+  comments          Int         @default(0)
+  shares            Int         @default(0)
+  saves             Int         @default(0)
+  
+  // Financial metrics
+  revenue           Float       @default(0)
+  tips              Float       @default(0)
+  subscriptions     Int         @default(0)
+  
+  // AI Insights
+  sentimentScore    Float?      // -1 to 1
+  topicRelevance    Float?      // 0 to 1
+  qualityScore      Float?      // 0 to 100
+  
+  createdAt         DateTime    @default(now())
+  
+  @@unique([contentId, date])
+  @@map("content_analytics")
+}
+
+// Review System
+model Review {
+  id                String      @id @default(cuid())
+  rating            Int         // 1-5 stars
+  comment           String?
+  
+  // References
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  contentId         String
+  content           Content     @relation(fields: [contentId], references: [id])
+  
+  // Moderation
+  isVerified        Boolean     @default(false)
+  isHelpful         Boolean     @default(false)
+  reportCount       Int         @default(0)
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@unique([userId, contentId])
+  @@map("reviews")
+}
+
+// Subscription System
+model Subscription {
+  id                String            @id @default(cuid())
+  type              SubscriptionType
+  status            SubscriptionStatus @default(ACTIVE)
+  
+  // Billing
+  price             Float
+  currency          String            @default("USD")
+  billingCycle      BillingCycle
+  nextBillingDate   DateTime
+  
+  // References
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  creatorId         String?
+  
+  // Stripe Integration
+  stripeSubscriptionId String?        @unique
+  stripeCustomerId  String?
+  
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  
+  @@map("subscriptions")
+}
+
+// Notification System
+model Notification {
+  id                String            @id @default(cuid())
+  type              NotificationType
+  title             String
+  message           String
+  isRead            Boolean           @default(false)
+  
+  // References
+  userId            String
+  user              User              @relation(fields: [userId], references: [id])
+  
+  // Metadata
+  metadata          Json?
+  actionUrl         String?
+  
+  createdAt         DateTime          @default(now())
+  
+  @@map("notifications")
+}
+
+// Gamification System
+model Achievement {
+  id                String      @id @default(cuid())
+  type              String      // achievement type
+  title             String
+  description       String
+  icon              String?
+  
+  // Progress
+  currentValue      Int         @default(0)
+  targetValue       Int
+  isCompleted       Boolean     @default(false)
+  completedAt       DateTime?
+  
+  // Rewards
+  rewardPoints      Int         @default(0)
+  rewardTokens      Float       @default(0)
+  
+  // References
+  userId            String
+  user              User        @relation(fields: [userId], references: [id])
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  @@map("achievements")
+}
+
+// Enums
+enum UserTier {
+  ROOKIE
+  VERIFIED_MENTOR
+  ELITE_ECONOMIST
+}
+
+enum KYCStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum ContentType {
+  ARTICLE
+  VIDEO
+  PODCAST
+  INFOGRAPHIC
+  COURSE
+  WEBINAR
+  TOOL
+}
+
+enum ContentCategory {
+  PERSONAL_FINANCE
+  INVESTING
+  BUDGETING
+  CRYPTOCURRENCY
+  FINANCIAL_LITERACY
+  ECONOMICS
+  TRADING
+  RETIREMENT_PLANNING
+  INSURANCE
+  TAXES
+}
+
+enum ContentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  SCHEDULED
+  UNDER_REVIEW
+}
+
+enum TransactionType {
+  CONTENT_PURCHASE
+  SUBSCRIPTION
+  TIP
+  NFT_MINT
+  NFT_SALE
+  TOKEN_REWARD
+  WITHDRAWAL
+  DEPOSIT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  STRIPE
+  CRYPTO
+  BANK_TRANSFER
+}
+
+enum SubscriptionType {
+  CREATOR_PREMIUM
+  PLATFORM_PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PAUSED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum NotificationType {
+  CONTENT_PUBLISHED
+  NEW_FOLLOWER
+  COMMENT_RECEIVED
+  PAYMENT_RECEIVED
+  ACHIEVEMENT_UNLOCKED
+  SYSTEM_UPDATE
+}
